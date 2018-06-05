@@ -1,0 +1,10 @@
+
+(library
+ ((name ftwu)
+  (public_name ftwu)
+  (modules (:standard \ cmd))))
+
+(executable
+ ((name cmd)
+  (public_name ftwu)
+  (modules (cmd))))
