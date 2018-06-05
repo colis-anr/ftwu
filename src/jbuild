@@ -7,4 +7,5 @@
 (executable
  ((name cmd)
   (public_name ftwu)
+  (libraries (ftwu))
   (modules (cmd))))
