@@ -6,7 +6,7 @@
 
 type 'a t
 
-val create : int -> 'a -> 'a t
+val make : int -> 'a -> 'a t
 
 val init : int -> (int -> 'a) -> 'a t
 

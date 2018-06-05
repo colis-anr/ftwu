@@ -1,13 +1,13 @@
-(* Persistent Union-Find
+(* Persistent Arrays
 
-   from Jean-Christophe Filliatre *)
+   addapted from that of Jean-Christophe Filliatre *)
 
 type 'a t = 'a data ref
 and 'a data =
   | Array of 'a array
   | Diff of int * 'a * 'a t
 
-let create n v =
+let make n v =
   ref (Array (Array.make n v))
 
 let init n f =

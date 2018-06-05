@@ -11,3 +11,9 @@ val create : int -> t
 val find : t -> int -> int
 
 val union : t -> int -> int -> t
+(** Computes the union of the two given integers and returns the
+   corresponding Puf. *)
+
+(** {2 Other endpoints} *)
+                                 
+val union_verbose : t -> int -> int -> (t * int * int)

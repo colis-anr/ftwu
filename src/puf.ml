@@ -1,6 +1,7 @@
 (* Persistent Union-Find
 
-   from Jean-Christophe Filliatre and Sylvain Conchon *)
+   from Jean-Christophe Filliatre and Sylvain Conchon
+ *)
 
 type t = {
     mutable fathers : int Parray.t ;
@@ -8,7 +9,7 @@ type t = {
   }
 
 let create size =
-  { ranks = Parray.create size 0 ;
+  { ranks = Parray.make size 0 ;
     fathers = Parray.init size (fun i -> i) }
 
 let rec find_aux fathers x =
@@ -25,22 +26,42 @@ let find heap x =
   heap.fathers <- fathers;
   ancestor_x
 
-let union heap x y =
+let union_verbose heap x y =
   let ancestor_x = find heap x in
   let ancestor_y = find heap y in
   if ancestor_x = ancestor_y then
-    heap
+    (
+      heap ,
+      ancestor_x ,
+      ancestor_y
+    )
   else
     (
       let rank_x = Parray.get heap.ranks ancestor_x in
       let rank_y = Parray.get heap.ranks ancestor_y in
       if rank_x > rank_y then
-        { heap with
-          fathers = Parray.set heap.fathers ancestor_y ancestor_x }
+        (
+          { heap with
+            fathers = Parray.set heap.fathers ancestor_y ancestor_x } ,
+          ancestor_x ,
+          ancestor_y
+        )
       else if rank_x < rank_y then
-        { heap with
-          fathers = Parray.set heap.fathers ancestor_x ancestor_y }
+        (
+          { heap with
+            fathers = Parray.set heap.fathers ancestor_x ancestor_y } ,
+          ancestor_y ,
+          ancestor_x
+        )
       else
-        { ranks = Parray.set heap.ranks ancestor_x (rank_x + 1);
-	  fathers = Parray.set heap.fathers ancestor_y ancestor_x }
+        (
+          { ranks = Parray.set heap.ranks ancestor_x (rank_x + 1);
+	    fathers = Parray.set heap.fathers ancestor_y ancestor_x } ,
+          ancestor_x ,
+          ancestor_y
+        )
     )
+
+let union heap x y =
+  let (puf, _, _) = union_verbose heap x y in
+  puf
