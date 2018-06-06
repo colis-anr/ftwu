@@ -2,6 +2,7 @@
 (library
  ((name ftwu)
   (public_name ftwu)
+  (libraries (ftwu.utils))
   (modules (:standard \ cmd))))
 
 (executable
