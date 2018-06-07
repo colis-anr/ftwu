@@ -130,3 +130,12 @@ let exists vs c =
 let exists_comp vs c =
   { c with
     globals = Variable.Map.filter (fun v _ -> List.mem v vs) c.globals }
+
+let neq (x : cls) (y : cls) (c : t) : t =
+  { c with
+    infos = Vpufs.separate c.infos x y }
+
+let neq x y c =
+  let (x, c) = class_from_variable c x in
+  let (y, c) = class_from_variable c y in
+  neq x y c

@@ -22,9 +22,15 @@ exception Unsat
 (** The exception raised when a modification would lead to
    unsatisfiability of the clause. *)
 
-val exists : Ftwu_common.Variable.t list -> t -> t
-(** [exists vs c] returns the clause corresponding to "exists [vs]. [c]" *)
+open Ftwu_common
 
-val exists_comp : Ftwu_common.Variable.t list -> t -> t
-(** [exists vs c] returns the clause corresponding to "exists
-   C[vs]. [c]" where "C[vs]" represents the complement of [vs]. *)
+val exists : Variable.t list -> t -> t
+(** [exists xs c] returns the clause corresponding to [exists xs. c]
+   *)
+
+val exists_comp : Variable.t list -> t -> t
+(** [exists xs c] returns the clause corresponding to [exists Cxs. c]
+   where [Cxs] represents the complement of [xs]. *)
+
+val neq : Variable.t -> Variable.t -> t -> t
+(** [neq x y] returns the clause corresponding to [x = y and c]. *) 
