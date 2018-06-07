@@ -1,0 +1,6 @@
+(executable
+ ((name test)))
+
+(alias
+ ((name runtest)
+  (action (run ./test.exe))))
