@@ -2,7 +2,7 @@
 open Ftwu_common
 open Ftwu_utils
 
-type cls = Vpufs.Class.t
+type cls = Vpuf.cls
 
 (* In all this file, we manipulate three objects that may be think of
    as "variables":
@@ -80,14 +80,14 @@ type t =
        information. All the infos are in the [info] type except for
        the equalities and disequalities that are encoded directly in
        the [Vpufs] structure. *)
-    infos : info Vpufs.t }
+    infos : info Vpuf.t }
 
 let empty =
   let total_size = 8 in
   { total_size ;
     size = 0 ;
     globals = Variable.Map.empty ;
-    infos = Vpufs.make total_size empty_info }
+    infos = Vpuf.make total_size empty_info }
 
 let double_size (c : t) : t =
   (* return a copy of this structure of twice the total_size *)
@@ -95,13 +95,13 @@ let double_size (c : t) : t =
   { total_size ;
     size = c.size ;
     globals = c.globals ;
-    infos = Vpufs.extend c.infos total_size empty_info }
+    infos = Vpuf.extend c.infos total_size empty_info }
 
 exception Unsat
 
 let fresh_class (c : t) : cls * t =
   (* finds a fresh class in the clause [c] *)
-  let fresh = Vpufs.Class.of_int c.size in
+  let fresh = Vpuf.cls_of_int c.size in
   let size = c.size + 1 in
   let c =
     if size <= c.total_size then
@@ -131,26 +131,91 @@ let exists_comp vs c =
   { c with
     globals = Variable.Map.filter (fun v _ -> List.mem v vs) c.globals }
 
+let check_cycles c =
+  (* FIXME: list -> set, but carefull with sets of classes *)
+  let rec visit visited trace x =
+    (* Precondition: no cycle is accessible from a variable in
+       [visited]
+
+       Precondition: [x] is accessible from any variable in [trace]
+
+       Postcondition in case of exception: there is a cycle accessible
+       from [x]
+
+       Postcondition in case of return: there is no cycle accessible
+       from a variable in the returned set
+
+       Variant: [trace] grows up strictly and is included in a finite
+       set *)
+    
+    if List.mem x visited then
+      visited
+    else if List.mem x trace then
+      raise Unsat
+    else
+      Feature.Map.fold
+        (fun f y visited ->
+          match y with
+          | None -> visited
+          | Some y -> visit visited (x :: trace) y)
+        (Vpuf.get c.infos x).feats
+        visited
+      |> (fun visited -> x :: visited)
+  in
+  let visited = ref [] in
+  for i = 0 to c.size - 1 do
+    visited := visit !visited [] (Vpuf.cls_of_int i)
+  done
+
 (* Internal atoms. These work on classes of variables. *)
+
+(* FIXME: C-Cycle *)
 
 let eq_i x y c =
   assert false
 
 let neq_i x y c =
-  { c with
-    infos = Vpufs.separate c.infos x y }
+  if Vpuf.eq_cls c.infos x y then
+    raise Unsat;
+  assert false
 
 let feat_i x f y c =
-  assert false
+  let info_x = Vpuf.get c.infos x in
+  match Feature.Map.find f info_x.feats with
+  | None -> (* absence: x[f]^; C-Feat-Abs *)
+     raise Unsat
+  | Some z -> (* feature x[f]z *)
+     eq_i y z c
+  | exception Not_found -> (* nothing *)
+     let info_x =
+       { info_x with
+         feats = Feature.Map.add f (Some y) info_x.feats }
+     in
+     { c with
+       infos = Vpuf.set c.infos x info_x }
 
 let nfeat_i x f y c =
   assert false
 
 let abs_i x f c =
-  assert false
+  let info_x = Vpuf.get c.infos x in
+  match Feature.Map.find f info_x.feats with
+  | None -> (* absence: x[f]^ *)
+     c
+  | Some z -> (* feature: x[f]z; C-Feat-Abs *)
+     raise Unsat
+  | exception Not_found -> (* nothing *)
+     let info_x =
+       { info_x with
+         feats = Feature.Map.add f None info_x.feats }
+     in
+     { c with
+       infos = Vpuf.set c.infos x info_x }
 
 let nabs_i x f c =
-  assert false
+  (* R-NAbs *)
+  let (z, c) = fresh_class c in
+  feat_i x f z c
 
 let fen_i x fs c =
   assert false
@@ -162,6 +227,9 @@ let sim_i x fs y c =
   assert false
 
 let nsim_i x fs y c =
+  (* C-NSim-Refl *)
+  if Vpuf.eq_cls c.infos x y then
+    raise Unsat;
   assert false
 
 (* External atoms. These are just wrappers around internal atoms and
@@ -219,8 +287,8 @@ let atom a c =
   let open Atom in
   match a with
   | Eq (x, y) -> eq x y c
-  | Feat (x, f, y) -> feat x f y c
-  | Abs (x, f) -> abs x f c
+  | Feat (x, f, y) -> [feat x f y c]
+  | Abs (x, f) -> [abs x f c]
   | Fen (x, fs) -> fen x fs c
   | Sim (x, fs, y) -> sim x fs y c
 
@@ -229,7 +297,7 @@ let natom a c =
   match a with
   | Eq (x, y) -> [neq x y c]
   | Feat (x, f, y) -> nfeat x f y c
-  | Abs (x, f) -> nabs x f c
+  | Abs (x, f) -> [nabs x f c]
   | Fen (x, fs) -> nfen x fs c
   | Sim (x, fs, y) -> nsim x fs y c
 
