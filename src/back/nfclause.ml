@@ -131,11 +131,110 @@ let exists_comp vs c =
   { c with
     globals = Variable.Map.filter (fun v _ -> List.mem v vs) c.globals }
 
-let neq (x : cls) (y : cls) (c : t) : t =
+(* Internal atoms. These work on classes of variables. *)
+
+let eq_i x y c =
+  assert false
+
+let neq_i x y c =
   { c with
     infos = Vpufs.separate c.infos x y }
+
+let feat_i x f y c =
+  assert false
+
+let nfeat_i x f y c =
+  assert false
+
+let abs_i x f c =
+  assert false
+
+let nabs_i x f c =
+  assert false
+
+let fen_i x fs c =
+  assert false
+
+let nfen_i x fs c =
+  assert false
+
+let sim_i x fs y c =
+  assert false
+
+let nsim_i x fs y c =
+  assert false
+
+(* External atoms. These are just wrappers around internal atoms and
+   [class_from_variable]. *)
+
+let eq x y c =
+  let (x, c) = class_from_variable c x in
+  let (y, c) = class_from_variable c y in
+  eq_i x y c
 
 let neq x y c =
   let (x, c) = class_from_variable c x in
   let (y, c) = class_from_variable c y in
-  neq x y c
+  neq_i x y c
+
+let feat x f y c =
+  let (x, c) = class_from_variable c x in
+  let (y, c) = class_from_variable c y in
+  feat_i x f y c
+
+let nfeat x f y c =
+  let (x, c) = class_from_variable c x in
+  let (y, c) = class_from_variable c y in
+  nfeat_i x f y c
+
+let abs x f c =
+  let (x, c) = class_from_variable c x in
+  abs_i x f c
+
+let nabs x f c =
+  let (x, c) = class_from_variable c x in
+  nabs_i x f c
+
+let fen x fs c =
+  let (x, c) = class_from_variable c x in
+  fen_i x fs c
+
+let nfen x fs c =
+  let (x, c) = class_from_variable c x in
+  nfen_i x fs c
+
+let sim x fs y c =
+  let (x, c) = class_from_variable c x in
+  let (y, c) = class_from_variable c y in
+  sim_i x fs y c
+
+let nsim x fs y c =
+  let (x, c) = class_from_variable c x in
+  let (y, c) = class_from_variable c y in
+  nsim_i x fs y c
+
+(* Higher-level endpoints. *)
+
+let atom a c =
+  let open Atom in
+  match a with
+  | Eq (x, y) -> eq x y c
+  | Feat (x, f, y) -> feat x f y c
+  | Abs (x, f) -> abs x f c
+  | Fen (x, fs) -> fen x fs c
+  | Sim (x, fs, y) -> sim x fs y c
+
+let natom a c =
+  let open Atom in
+  match a with
+  | Eq (x, y) -> [neq x y c]
+  | Feat (x, f, y) -> nfeat x f y c
+  | Abs (x, f) -> nabs x f c
+  | Fen (x, fs) -> nfen x fs c
+  | Sim (x, fs, y) -> nsim x fs y c
+
+let literal l c =
+  let open Literal in
+  match l with
+  | Pos a -> atom a c
+  | Neg a -> natom a c
