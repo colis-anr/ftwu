@@ -16,23 +16,23 @@ open Ftwu_utils
    manipulate. This is just a convenient tool provided by the module
    {!Vpufs}. *)
 
-type information =
+type info =
   (* All the "local" information that we keep on a class of equal
      variables. *)
   {
     (* Features. This is a map from features to variable options;
        [None] meaning an absence, and [Some y] meaning a feature
        constraint towards this class of equal variables [y]. *)
-    features : Vpufs.Class.t option Feature.Map.t ;
+    feats : Vpufs.Class.t option Feature.Map.t ;
 
     (* Positive fences. We know that there can be at most one (because
        of S-Fens). *)
-    fence : Feature.Set.t option ;
+    fen : Feature.Set.t option ;
 
     (* Negative fences. We have to keep most of them. We still have
        that for all set [F] in [nfences], there is no [G] in [nfences]
        such that [F] is included in [G]. *)
-    nfences : Feature.Set.t list ;
+    nfens : Feature.Set.t list ;
 
     (* Positive similarities. We know that there can be only one for a
        pair of variables. We cannot use a map or something that would
@@ -41,8 +41,15 @@ type information =
 
        This similarity will be represented twice: in the information
        of the two classes of equal variables. *)
-    similarities : (Feature.Set.t * Vpufs.Class.t) list ;
+    sims : (Feature.Set.t * Vpufs.Class.t) list ;
 
     (* Negative similarities. *)
-    nsimilarities : (Feature.Set.t list * Vpufs.Class.t) list
+    nsims : (Feature.Set.t list * Vpufs.Class.t) list
   }
+
+let empty_info =
+  { feats = Feature.Map.empty ;
+    fen = None ;
+    nfens = [] ;
+    sims = [] ;
+    nsims = [] }

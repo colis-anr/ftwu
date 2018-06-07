@@ -14,6 +14,11 @@ module Set =
     include Set.Make(struct type s = t type t = s let compare = compare end)
   end
 
+module Map =
+  struct
+    include Map.Make(struct type s = t type t = s let compare = compare end)
+  end
+  
 let hint v =
   if v.hint = "" then
     None
