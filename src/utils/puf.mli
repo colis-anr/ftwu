@@ -15,5 +15,7 @@ val union : t -> int -> int -> t
    corresponding Puf. *)
 
 (** {2 Other endpoints} *)
-                                 
+
 val union_verbose : t -> int -> int -> (t * int * int)
+
+val extend : t -> int -> t

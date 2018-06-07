@@ -65,3 +65,17 @@ let union_verbose heap x y =
 let union heap x y =
   let (puf, _, _) = union_verbose heap x y in
   puf
+
+let parray_extend_f a n f =
+  let s = Parray.length a in
+  Parray.init (n - s) (fun i -> f (s + i))
+  |> Parray.append a
+
+let parray_extend a n v =
+  let s = Parray.length a in
+  Parray.make (n - s) v
+  |> Parray.append a
+
+let extend h n =
+  { ranks = parray_extend h.ranks n 0 ;
+    fathers = parray_extend_f h.fathers n (fun i -> i) }

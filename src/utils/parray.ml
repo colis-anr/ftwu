@@ -33,7 +33,8 @@ let rec rerootk t k =
 let reroot t =
   rerootk t (fun () -> ())
 
-let rec get t i = match !t with
+let rec get t i =
+  match !t with
   | Array a ->
      a.(i)
   | Diff _ ->
@@ -59,4 +60,27 @@ let set t i v =
 	 res
        )
   | Diff _ ->
+     assert false
+
+let reroot_and_apply f t =
+  reroot t;
+  match !t with
+  | Array a -> f a
+  | Diff _ -> assert false
+
+let unsafe_from_array a =
+  ref (Array a)
+
+let from_array a =
+  unsafe_from_array (Array.copy a)
+            
+let length t = reroot_and_apply Array.length t
+
+let append t1 t2 =
+  reroot t1;
+  reroot t2;
+  match !t1, !t2 with
+  | Array a1, Array a2 ->
+     unsafe_from_array (Array.append a1 a2)
+  | _ ->
      assert false

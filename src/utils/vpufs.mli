@@ -44,3 +44,7 @@ val separate : 'a t -> Class.t -> Class.t -> 'a t
    afterwards.
 
    @raise Unsat when the two classes are the same *)
+
+val extend : 'a t -> int -> 'a -> 'a t
+(** [extend h n] returns a copy of [h] allowed to talk about variables
+   in [\[0..n-1\]]. *)

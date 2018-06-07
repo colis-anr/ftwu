@@ -84,5 +84,14 @@ let separate h x y =
   let sep_x = Parray.get h.sep a_x in
   let sep_x = ISet.add a_y sep_x in
   let sep = Parray.set h.sep a_x sep_x in
-  
+
   { h with sep }
+
+let extend h n v =
+  let parray_extend a n v =
+    let s = Parray.length a in
+    Parray.append a (Parray.make (n - s) v)
+  in
+  { puf = Puf.extend h.puf n ;
+    sep = parray_extend h.sep n ISet.empty ;
+    vals = parray_extend h.vals n v }
