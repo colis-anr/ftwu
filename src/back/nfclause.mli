@@ -1,6 +1,4 @@
-(** {1 Clauses in normal-form}
-
-   This module is here to represent clauses in normal-form.
+(** This module is here to represent clauses in normal-form.
 
    It provides an abstract type for clauses. Any value of this type
    that has been created using this interface is guaranteed to be in
@@ -23,3 +21,10 @@ val empty : t
 exception Unsat
 (** The exception raised when a modification would lead to
    unsatisfiability of the clause. *)
+
+val exists : Ftwu_common.Variable.t list -> t -> t
+(** [exists vs c] returns the clause corresponding to "exists [vs]. [c]" *)
+
+val exists_comp : Ftwu_common.Variable.t list -> t -> t
+(** [exists vs c] returns the clause corresponding to "exists
+   C[vs]. [c]" where "C[vs]" represents the complement of [vs]. *)

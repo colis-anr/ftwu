@@ -2,6 +2,8 @@
 open Ftwu_common
 open Ftwu_utils
 
+type cls = Vpufs.Class.t
+
 (* In all this file, we manipulate three objects that may be think of
    as "variables":
 
@@ -23,7 +25,7 @@ type info =
     (* Features. This is a map from features to variable options;
        [None] meaning an absence, and [Some y] meaning a feature
        constraint towards this class of equal variables [y]. *)
-    feats : Vpufs.Class.t option Feature.Map.t ;
+    feats : cls option Feature.Map.t ;
 
     (* Positive fences. We know that there can be at most one (because
        of S-Fens). *)
@@ -41,10 +43,10 @@ type info =
 
        This similarity will be represented twice: in the information
        of the two classes of equal variables. *)
-    sims : (Feature.Set.t * Vpufs.Class.t) list ;
+    sims : (Feature.Set.t * cls) list ;
 
     (* Negative similarities. *)
-    nsims : (Feature.Set.t list * Vpufs.Class.t) list
+    nsims : (Feature.Set.t list * cls) list
   }
 
 let empty_info =
@@ -71,7 +73,7 @@ type t =
        variables of the constraint. Because the others internal
        classes of variables are not accessible from the map, there is
        no way from outside to manipulate them. *)
-    globals : Vpufs.Class.t Variable.Map.t ;
+    globals : cls Variable.Map.t ;
 
     (* [infos] is a special structure provided by the [Vpufs] module
        that associates efficiently classes of variables to their
@@ -87,7 +89,7 @@ let empty =
     globals = Variable.Map.empty ;
     infos = Vpufs.make total_size empty_info }
 
-let double_size c =
+let double_size (c : t) : t =
   (* return a copy of this structure of twice the total_size *)
   let total_size = c.total_size lsl 1 in
   { total_size ;
@@ -96,3 +98,35 @@ let double_size c =
     infos = Vpufs.extend c.infos total_size empty_info }
 
 exception Unsat
+
+let fresh_class (c : t) : cls * t =
+  (* finds a fresh class in the clause [c] *)
+  let fresh = Vpufs.Class.of_int c.size in
+  let size = c.size + 1 in
+  let c =
+    if size <= c.total_size then
+      c
+    else
+      (* if no fresh class is available, we double the size and *pouf*
+         here it is *)
+      double_size c
+  in
+  (fresh, { c with size })
+
+let class_from_variable (c : t) (v : Variable.t) : cls * t =
+  (* [v] is a variable from the outside. We associate an internal
+     class to it by first looking in [c.globals] if this association
+     exists already or by finding a fresh class for it *)
+  match Variable.Map.find v c.globals with
+  | cls -> (cls, c)
+  | exception Not_found ->
+     let (cls, c) = fresh_class c in
+     (cls, { c with globals = Variable.Map.add v cls c.globals })
+
+let exists vs c =
+  { c with
+    globals = Variable.Map.filter (fun v _ -> not (List.mem v vs)) c.globals }
+
+let exists_comp vs c =
+  { c with
+    globals = Variable.Map.filter (fun v _ -> List.mem v vs) c.globals }
