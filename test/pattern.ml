@@ -114,7 +114,10 @@ let rec match_aux vmap fmap fsmap p c =
      |> List.flatten
 
 let match_all p c =
-  match_aux Variable.Map.empty Feature.Map.empty Feature.Map.empty p c
+  match_aux Variable.Map.empty Feature.Map.empty Feature.Map.empty p.pattern c
+  |> List.filter
+       (fun (vmap, fmap, fsmap, _c) ->
+         p.guard vmap fmap fsmap)
 
 let match_one p c =
   match match_all p c with
