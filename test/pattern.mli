@@ -22,7 +22,7 @@ type t =
   { pattern : pclause ;
     guard : vmap -> fmap -> fsmap -> bool }
 
-val match_all : t -> Clause.t -> (vmap * fmap * fsmap * Clause.t) list
+val match_all : pclause -> Clause.t -> (vmap * fmap * fsmap * Clause.t) list
 
-val match_one : t -> Clause.t -> (vmap * fmap * fsmap * Clause.t)
+val match_one : pclause -> Clause.t -> (vmap * fmap * fsmap * Clause.t)
 (** @raise (Failure "Pattern.match_one") when no match is found *)

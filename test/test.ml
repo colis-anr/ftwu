@@ -7,10 +7,10 @@ open Pattern
 let triv =
   let x = Variable.fresh () in
   let y = Variable.fresh () in
-  { pattern = [ Pos (Eq (x, y)) ] ;
-    guard = (fun map ->
-      Variable.Map.find x map
-        <> Variable.Map.find y map) }
+  { pattern = [ PPos (PEq (x, y)) ] ;
+    guard = (fun vmap _fmap _fsmap ->
+      Variable.Map.find x vmap
+        <> Variable.Map.find y vmap) }
 
 let () =
   ()
