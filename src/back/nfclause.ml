@@ -33,7 +33,8 @@ type info =
 
     (* Negative fences. We have to keep most of them. We still have
        that for all set [F] in [nfences], there is no [G] in [nfences]
-       such that [F] is included in [G]. *)
+       such that [F] is included in [G]. We also have that if this
+       list is non-empty, then [fen] is [None]. *)
     nfens : Feature.Set.t list ;
 
     (* Positive similarities. We know that there can be only one for a
@@ -131,42 +132,6 @@ let exists_comp vs c =
   { c with
     globals = Variable.Map.filter (fun v _ -> List.mem v vs) c.globals }
 
-(* let check_cycles c =
- *   (\* FIXME: list -> set, but carefull with sets of classes *\)
- *   let rec visit visited trace x =
- *     (\* Precondition: no cycle is accessible from a variable in
- *        [visited]
- *
- *        Precondition: [x] is accessible from any variable in [trace]
- *
- *        Postcondition in case of exception: there is a cycle accessible
- *        from [x]
- *
- *        Postcondition in case of return: there is no cycle accessible
- *        from a variable in the returned set
- *
- *        Variant: [trace] grows up strictly and is included in a finite
- *        set *\)
- *
- *     if List.mem x visited then
- *       visited
- *     else if List.mem x trace then
- *       raise Unsat
- *     else
- *       Feature.Map.fold
- *         (fun f y visited ->
- *           match y with
- *           | None -> visited
- *           | Some y -> visit visited (x :: trace) y)
- *         (Vpuf.get c.infos x).feats
- *         visited
- *       |> (fun visited -> x :: visited)
- *   in
- *   let visited = ref [] in
- *   for i = 0 to c.size - 1 do
- *     visited := visit !visited [] (Vpuf.cls_of_int i)
- *   done *)
-
 let check_cycles_from c x =
   let rec visit trace x =
     if List.mem x trace then
@@ -211,7 +176,7 @@ let feat_i x f y c =
        List.fold_left
          (fun c (fs, z) ->
            let info_z = Vpuf.get c.infos z in
-           let info_z = { info_z with feats = Feature.Map.add f (Some y) info_x.feats } in
+           let info_z = { info_z with feats = Feature.Map.add f (Some y) info_z.feats } in
            { c with infos = Vpuf.set c.infos z info_z })
          c
          info_x.sims
@@ -221,7 +186,9 @@ let feat_i x f y c =
      List.iter
        (fun (_, z) ->
          check_cycles_from c z)
-       info_x.sims
+       info_x.sims;
+     (* return *)
+     c
 
 let nfeat_i x f y c =
   assert false
@@ -234,12 +201,19 @@ let abs_i x f c =
   | Some z -> (* feature: x[f]z; C-Feat-Abs *)
      raise Unsat
   | exception Not_found -> (* nothing *)
-     let info_x =
-       { info_x with
-         feats = Feature.Map.add f None info_x.feats }
+     (* add and propagate *)
+     let info_x = { info_x with feats = Feature.Map.add f None info_x.feats } in
+     let c = { c with infos = Vpuf.set c.infos x info_x } in
+     let c =
+       List.fold_left
+         (fun c (fs, z) ->
+           let info_z = Vpuf.get c.infos z in
+           let info_z = { info_z with feats = Feature.Map.add f None info_z.feats } in
+           { c with infos = Vpuf.set c.infos z info_z })
+         c
+         info_x.sims
      in
-     { c with
-       infos = Vpuf.set c.infos x info_x }
+     c
 
 let nabs_i x f c =
   (* R-NAbs *)
