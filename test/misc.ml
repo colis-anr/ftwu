@@ -31,16 +31,16 @@ let pp_vmap fmt vmap =
 
 let pp_fmap fmt fmap =
   Format.fprintf fmt "fmap:@.";
-  Feature.Map.iter
+  Variable.Map.iter
     (fun pf f ->
-      Format.fprintf fmt "| %a -> %a@." Feature.pp_print pf Feature.pp_print f)
+      Format.fprintf fmt "| %a -> %a@." pp_variable pf Feature.pp_print f)
     fmap
 
 let pp_fsmap fmt fsmap =
   Format.fprintf fmt "fsmap:@.";
-  Feature.Map.iter
+  Variable.Map.iter
     (fun pf fs ->
-      Format.fprintf fmt "| %a -> %a@." Feature.pp_print pf pp_feature_set fs)
+      Format.fprintf fmt "| %a -> %a@." pp_variable pf pp_feature_set fs)
     fsmap
 
 let pp_atom fmt a =

@@ -4,10 +4,10 @@ module VMap = Variable.Map
 
 type patom =
   | PEq of Variable.t * Variable.t
-  | PFeat of Variable.t * Feature.t * Variable.t
-  | PAbs of Variable.t * Feature.t
-  | PFen of Variable.t * Feature.t
-  | PSim of Variable.t * Feature.t * Variable.t
+  | PFeat of Variable.t * Variable.t * Variable.t
+  | PAbs of Variable.t * Variable.t
+  | PFen of Variable.t * Variable.t
+  | PSim of Variable.t * Variable.t * Variable.t
 
 type pliteral =
   | PPos of patom
@@ -15,30 +15,19 @@ type pliteral =
 
 type pclause = pliteral list
 
-type vmap = Variable.t Variable.Map.t
-type fmap = Feature.t Feature.Map.t
-type fsmap = Feature.Set.t Feature.Map.t
+type vmap = Variable.t VMap.t
+type fmap = Feature.t VMap.t
+type fsmap = Feature.Set.t VMap.t
 
-let vmap_add_fail k v m =
-  match Variable.Map.find k m with
+let add_fail k v m =
+  (* FIXME: much better with VMap.update but >= OCaml 4.06 *)
+  match VMap.find k m with
   | w when v = w ->
      m
   | _ ->
-     failwith "vmap_add_or_fail"
+     failwith "add_fail"
   | exception Not_found ->
-     Variable.Map.add k v m
-
-let fmap_add_fail k v m =
-  match Feature.Map.find k m with
-  | w when v = w ->
-     m
-  | _ ->
-     failwith "vmap_add_or_fail"
-  | exception Not_found ->
-     Feature.Map.add k v m
-
-let fsmap_add_fail k v m =
-  fmap_add_fail k v m
+     VMap.add k v m
 
 type t =
   { pattern : pclause ;
@@ -48,35 +37,35 @@ let match_atoms vmap fmap fsmap pa a =
   let open Atom in
   match pa, a with
   | PEq (px, py) , Eq (x, y) ->
-     [ ( vmap |> vmap_add_fail px x |> vmap_add_fail py y ,
+     [ ( vmap |> add_fail px x |> add_fail py y ,
          fmap , fsmap ) ;
 
-       ( vmap |> vmap_add_fail px y |> vmap_add_fail py x ,
+       ( vmap |> add_fail px y |> add_fail py x ,
          fmap , fsmap ) ]
 
   | PFeat (px, pf, py) , Feat (x, f, y) ->
-     [ ( vmap |> vmap_add_fail px x |> vmap_add_fail py y ,
-         fmap |> fmap_add_fail pf f ,
+     [ ( vmap |> add_fail px x |> add_fail py y ,
+         fmap |> add_fail pf f ,
          fsmap ) ]
 
   | PAbs (px, pf) , Abs (x, f) ->
-     [ ( vmap |> vmap_add_fail px x ,
-         fmap |> fmap_add_fail pf f ,
+     [ ( vmap |> add_fail px x ,
+         fmap |> add_fail pf f ,
          fsmap ) ]
 
   | PFen (px, pf) , Fen (x, fs) ->
-     [ ( vmap |> vmap_add_fail px x ,
+     [ ( vmap |> add_fail px x ,
          fmap ,
-         fsmap |> fsmap_add_fail pf fs ) ]
+         fsmap |> add_fail pf fs ) ]
 
   | PSim (px, pf, py) , Sim (x, fs, y) ->
-     [ ( vmap |> vmap_add_fail px x |> vmap_add_fail py y ,
+     [ ( vmap |> add_fail px x |> add_fail py y ,
          fmap ,
-         fsmap |> fsmap_add_fail pf fs ) ;
+         fsmap |> add_fail pf fs ) ;
 
-       ( vmap |> vmap_add_fail px y |> vmap_add_fail py x ,
+       ( vmap |> add_fail px y |> add_fail py x ,
          fmap ,
-         fsmap |> fsmap_add_fail pf fs ) ]
+         fsmap |> add_fail pf fs ) ]
 
   | _ -> []
 
@@ -114,7 +103,7 @@ let rec match_aux vmap fmap fsmap p c =
      |> List.flatten
 
 let match_all p c =
-  match_aux Variable.Map.empty Feature.Map.empty Feature.Map.empty p.pattern c
+  match_aux VMap.empty VMap.empty VMap.empty p.pattern c
   |> List.filter
        (fun (vmap, fmap, fsmap, _c) ->
          p.guard vmap fmap fsmap)
@@ -123,3 +112,8 @@ let match_one p c =
   match match_all p c with
   | [] -> failwith "Pattern.match_one"
   | m :: _ -> m
+
+let match_exist p c =
+  match match_all p c with
+  | [] -> false
+  | _ -> true
