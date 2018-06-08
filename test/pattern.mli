@@ -1,10 +1,25 @@
 
 open Ftwu_common
 
-type map = Variable.t Variable.Map.t
-   
-type t =
-  { pattern : Clause.t ;
-    guard : map -> bool }
+type patom =
+  | PEq of Variable.t * Variable.t
+  | PFeat of Variable.t * Feature.t * Variable.t
+  | PAbs of Variable.t * Feature.t
+  | PFen of Variable.t * Feature.t
+  | PSim of Variable.t * Feature.t * Variable.t
 
-val match_ : t -> Clause.t -> map * Clause.t
+type pliteral =
+  | PPos of patom
+  | PNeg of patom
+
+type pclause = pliteral list
+
+type vmap = Variable.t Variable.Map.t
+type fmap = Feature.t Feature.Map.t
+type fsmap = Feature.Set.t Feature.Map.t
+
+type t =
+  { pattern : pclause ;
+    guard : vmap -> fmap -> fsmap -> bool }
+
+val match_ : t -> Clause.t -> vmap * fmap * fsmap * Clause.t

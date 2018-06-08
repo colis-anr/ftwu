@@ -78,5 +78,21 @@ let match_literals pl l =
   | PNeg pa , Neg a -> match_atoms pa a
   | _ -> []
 
+let rec match_literal_with_clause pl = function
+  | [] -> []
+  | l :: c ->
+     (
+       match_literals pl l
+       |> List.map
+            (fun (vmap, fmap, fsmap) ->
+              (vmap, fmap, fsmap, c))
+     )
+     @ (
+      match_literal_with_clause pl c
+      |> List.map
+           (fun (vmap, fmap, fsmap, c) ->
+             (vmap, fmap, fsmap, l :: c))
+    )
+
 let match_ p c =
   assert false
