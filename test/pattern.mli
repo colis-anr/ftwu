@@ -18,6 +18,10 @@ type vmap = Variable.t Variable.Map.t
 type fmap = Feature.t Variable.Map.t
 type fsmap = Feature.Set.t Variable.Map.t
 
+val patom_to_atom : vmap -> fmap -> fsmap -> patom -> Atom.t
+val pliteral_to_literal : vmap -> fmap -> fsmap -> pliteral -> Literal.t
+val pclause_to_clause : vmap -> fmap -> fsmap -> pclause -> Clause.t
+
 type t =
   { pattern : pclause ;
     guard : vmap -> fmap -> fsmap -> bool }

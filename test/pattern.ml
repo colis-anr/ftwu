@@ -19,6 +19,24 @@ type vmap = Variable.t VMap.t
 type fmap = Feature.t VMap.t
 type fsmap = Feature.Set.t VMap.t
 
+let patom_to_atom vmap fmap fsmap pa =
+  let open Atom in
+  match pa with
+  | PEq (x, y) -> Eq (VMap.find x vmap, VMap.find y vmap)
+  | PFeat (x, f, y) -> Feat (VMap.find x vmap, VMap.find f fmap, VMap.find y vmap)
+  | PAbs (x, f) -> Abs (VMap.find x vmap, VMap.find f fmap)
+  | PFen (x, fs) -> Fen (VMap.find x vmap, VMap.find fs fsmap)
+  | PSim (x, fs, y) -> Sim (VMap.find x vmap, VMap.find fs fsmap, VMap.find y vmap)
+
+let pliteral_to_literal vmap fmap fsmap pl =
+  let open Literal in
+  match pl with
+  | PPos pa -> Pos (patom_to_atom vmap fmap fsmap pa)
+  | PNeg pa -> Neg (patom_to_atom vmap fmap fsmap pa)
+
+let pclause_to_clause vmap fmap fsmap c =
+  List.map (pliteral_to_literal vmap fmap fsmap) c
+
 let add_fail k v m =
   (* FIXME: much better with VMap.update but >= OCaml 4.06 *)
   match VMap.find k m with
@@ -37,35 +55,66 @@ let match_atoms vmap fmap fsmap pa a =
   let open Atom in
   match pa, a with
   | PEq (px, py) , Eq (x, y) ->
-     [ ( vmap |> add_fail px x |> add_fail py y ,
-         fmap , fsmap ) ;
-
-       ( vmap |> add_fail px y |> add_fail py x ,
-         fmap , fsmap ) ]
+     (
+       try
+         [ ( vmap |> add_fail px x |> add_fail py y ,
+             fmap , fsmap ) ]
+       with
+         Failure _ -> []
+     ) @ (
+      try
+        [ ( vmap |> add_fail px y |> add_fail py x ,
+            fmap , fsmap ) ]
+      with
+        Failure _ -> []
+    )
 
   | PFeat (px, pf, py) , Feat (x, f, y) ->
-     [ ( vmap |> add_fail px x |> add_fail py y ,
-         fmap |> add_fail pf f ,
-         fsmap ) ]
+     (
+       try
+         [ ( vmap |> add_fail px x |> add_fail py y ,
+             fmap |> add_fail pf f ,
+             fsmap ) ]
+       with
+         Failure _ -> []
+     )
 
   | PAbs (px, pf) , Abs (x, f) ->
-     [ ( vmap |> add_fail px x ,
-         fmap |> add_fail pf f ,
-         fsmap ) ]
+     (
+       try
+         [ ( vmap |> add_fail px x ,
+             fmap |> add_fail pf f ,
+             fsmap ) ]
+       with
+         Failure _ -> []
+     )
 
   | PFen (px, pf) , Fen (x, fs) ->
-     [ ( vmap |> add_fail px x ,
-         fmap ,
-         fsmap |> add_fail pf fs ) ]
+     (
+       try
+         [ ( vmap |> add_fail px x ,
+             fmap ,
+             fsmap |> add_fail pf fs ) ]
+       with
+         Failure _ -> []
+     )
 
   | PSim (px, pf, py) , Sim (x, fs, y) ->
-     [ ( vmap |> add_fail px x |> add_fail py y ,
-         fmap ,
-         fsmap |> add_fail pf fs ) ;
-
-       ( vmap |> add_fail px y |> add_fail py x ,
-         fmap ,
-         fsmap |> add_fail pf fs ) ]
+     (
+       try
+         [ ( vmap |> add_fail px x |> add_fail py y ,
+             fmap ,
+             fsmap |> add_fail pf fs ) ]
+       with
+         Failure _ -> []
+     ) @ (
+      try
+        [ ( vmap |> add_fail px y |> add_fail py x ,
+            fmap ,
+            fsmap |> add_fail pf fs ) ]
+      with
+        Failure _ -> []
+    )
 
   | _ -> []
 

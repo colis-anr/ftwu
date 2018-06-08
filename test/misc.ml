@@ -47,6 +47,8 @@ let pp_atom fmt a =
   let open Atom in
   match a with
   | Eq (x, y) -> Format.fprintf fmt "%a=%a" pp_variable x pp_variable y
+  | Feat (x, f, y) -> Format.fprintf fmt "%a[%a]%a" pp_variable x Feature.pp_print f pp_variable y
+  | Sim (x, fs, y) -> Format.fprintf fmt "%a~%a%a" pp_variable x pp_feature_set fs pp_variable y
   | _ -> assert false
   
 let pp_literal fmt l =
