@@ -94,5 +94,16 @@ let rec match_literal_with_clause pl = function
              (vmap, fmap, fsmap, l :: c))
     )
 
-let match_ p c =
-  assert false
+let rec match_aux vmap fmap fsmap p c =
+  match p with
+  | [] -> [ (vmap, fmap, fsmap, c) ]
+  | pl :: p ->
+     assert false
+
+let match_all p c =
+  match_aux Variable.Map.empty Feature.Map.empty Feature.Map.empty p c
+
+let match_one p c =
+  match match_all p c with
+  | [] -> failwith "Pattern.match_one"
+  | m :: _ -> m
