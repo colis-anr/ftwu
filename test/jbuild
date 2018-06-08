@@ -1,5 +1,6 @@
 (executable
- ((name test)))
+ ((name test)
+  (libraries (ftwu.common))))
 
 (alias
  ((name runtest)
