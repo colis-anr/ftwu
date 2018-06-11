@@ -90,6 +90,14 @@ let empty =
     globals = Variable.Map.empty ;
     infos = Vpuf.make total_size empty_info }
 
+type disj = t list
+
+let top = [empty]
+
+let bottom = []
+
+let sat d = d <> bottom
+
 let double_size (c : t) : t =
   (* return a copy of this structure of twice the total_size *)
   let total_size = c.total_size lsl 1 in
@@ -97,8 +105,6 @@ let double_size (c : t) : t =
     size = c.size ;
     globals = c.globals ;
     infos = Vpuf.extend c.infos total_size empty_info }
-
-exception Unsat
 
 let fresh_class (c : t) : cls * t =
   (* finds a fresh class in the clause [c] *)
@@ -124,18 +130,18 @@ let class_from_variable (c : t) (v : Variable.t) : cls * t =
      let (cls, c) = fresh_class c in
      (cls, { c with globals = Variable.Map.add v cls c.globals })
 
-let exists vs c =
-  { c with
-    globals = Variable.Map.filter (fun v _ -> not (List.mem v vs)) c.globals }
+let on_disj (f : t -> t) (d : disj) : disj =
+  d |> List.map f
 
-let exists_comp vs c =
-  { c with
-    globals = Variable.Map.filter (fun v _ -> List.mem v vs) c.globals }
+let on_disj_l (f : t -> disj) (d : disj) : disj =
+  d |> List.map f |> List.flatten
+
+exception Cycle
 
 let check_cycles_from c x =
   let rec visit trace x =
     if List.mem x trace then
-      raise Unsat
+      raise Cycle
     else
       Feature.Map.iter
         (fun f -> function
@@ -145,61 +151,143 @@ let check_cycles_from c x =
   in
   visit [] x
 
+let has_cycles_from c x =
+  try
+    check_cycles_from c x;
+    false
+  with
+    Cycle -> true
+
+let exists vs c =
+  { c with
+    globals = Variable.Map.filter (fun v _ -> not (List.mem v vs)) c.globals }
+
+let exists_d vs d =
+  on_disj (exists vs) d
+
+let exists_comp vs c =
+  { c with
+    globals = Variable.Map.filter (fun v _ -> List.mem v vs) c.globals }
+
+let exists_comp_d vs d =
+  on_disj (exists_comp vs) d
+
 (* Internal atoms. These work on classes of variables. *)
 
-(* FIXME: C-Cycle *)
+let rec eq_i (x:cls) (y:cls) (c:t) : disj =
+  let (infos, info_y) = Vpuf.union c.infos x y in
+  let c = { c with infos } in
+  let d = [c] in
+  let d =
+    Feature.Map.fold
+      (fun f z d ->
+        match z with
+        | None -> d
+        | Some z -> on_disj_l (feat_i x f z) d)
+      info_y.feats
+      d
+  in
+  let d =
+    match info_y.fen with
+    | None -> d
+    | Some fs -> on_disj_l (fen_i x fs) d
+  in
+  let d =
+    List.fold_left
+      (fun d fs ->
+        on_disj_l (nfen_i x fs) d)
+      d
+      info_y.nfens
+  in
+  let d =
+    List.fold_left
+      (fun d (fs, z) ->
+        on_disj_l (sim_i x fs z) d)
+      d
+      info_y.sims
+  in
+  let d =
+    List.fold_left
+      (fun d (fsl, z) ->
+        List.fold_left (fun d fs ->
+            on_disj_l (nsim_i x fs z) d)
+          d fsl)
+      d
+      info_y.nsims
+  in
+  d
 
-let eq_i x y c =
-  assert false
-
-let neq_i x y c =
-  if Vpuf.eq_cls c.infos x y then
-    raise Unsat;
-  assert false
-
-let feat_i x f y c =
+and feat_i (x:cls) f (y:cls) (c:t) : disj =
   let info_x = Vpuf.get c.infos x in
   match Feature.Map.find f info_x.feats with
   | None -> (* absence: x[f]^; C-Feat-Abs *)
-     raise Unsat
+     bottom
   | Some z -> (* feature x[f]z *)
      eq_i y z c
   | exception Not_found -> (* nothing *)
      (* check for clashes *)
-     (match info_x.fen with
-      | Some fs when not (Feature.Set.mem f fs) -> raise Unsat
-      | _ -> ());
-     (* add and propagate *)
-     let info_x = { info_x with feats = Feature.Map.add f (Some y) info_x.feats } in
-     let c = { c with infos = Vpuf.set c.infos x info_x } in
-     let c =
-       List.fold_left
-         (fun c (fs, z) ->
-           let info_z = Vpuf.get c.infos z in
-           let info_z = { info_z with feats = Feature.Map.add f (Some y) info_z.feats } in
-           { c with infos = Vpuf.set c.infos z info_z })
-         c
-         info_x.sims
-     in
-     (* check for cycles *)
-     check_cycles_from c x;
-     List.iter
-       (fun (_, z) ->
-         check_cycles_from c z)
-       info_x.sims;
-     (* return *)
-     c
+     (
+       match info_x.fen with
+       | Some fs when not (Feature.Set.mem f fs) ->
+          bottom
+       | _ ->
+          (* add and propagate *)
+          let info_x = { info_x with feats = Feature.Map.add f (Some y) info_x.feats } in
+          let c = { c with infos = Vpuf.set c.infos x info_x } in
+          let c =
+            List.fold_left
+              (fun c (fs, z) ->
+                let info_z = Vpuf.get c.infos z in
+                let info_z = { info_z with feats = Feature.Map.add f (Some y) info_z.feats } in
+                { c with infos = Vpuf.set c.infos z info_z })
+              c
+              info_x.sims
+          in
+          (* check for cycles *)
+          try
+            check_cycles_from c x;
+            List.iter
+              (fun (_, z) ->
+                check_cycles_from c z)
+              info_x.sims;
+            (* return *)
+            [c]
+          with
+            Cycle -> bottom
+     )
 
-let nfeat_i x f y c =
+and fen_i (x:cls) fs (c:t) : disj =
   assert false
 
-let abs_i x f c =
+and nfen_i (x:cls) fs (c:t) : disj =
+  assert false
+
+and sim_i (x:cls) fs (y:cls) (c:t) : disj =
+  assert false
+
+and nsim_i (x:cls) fs (y:cls) (c:t) : disj =
+  (* C-NSim-Refl *)
+  if Vpuf.eq_cls c.infos x y then
+    bottom
+  else
+    assert false
+
+let neq_i (x:cls) (y:cls) (c:t) : disj =
+  if Vpuf.eq_cls c.infos x y then
+    bottom
+  else
+    assert false
+
+let nfeat_i (x:cls) f (y:cls) (c:t) : disj =
+  assert false
+
+let abs_i (x:cls) f (c:t) : disj =
   let info_x = Vpuf.get c.infos x in
   match Feature.Map.find f info_x.feats with
   | None -> (* absence: x[f]^ *)
-     c
+     [c]
   | Some z -> (* feature: x[f]z; C-Feat-Abs *)
-     raise Unsat
+     bottom
   | exception Not_found -> (* nothing *)
      (* add and propagate *)
      let info_x = { info_x with feats = Feature.Map.add f None info_x.feats } in
@@ -213,27 +301,12 @@ let abs_i x f c =
          c
          info_x.sims
      in
-     c
+     [c]
 
-let nabs_i x f c =
+let nabs_i (x:cls) f (c:t) : disj =
   (* R-NAbs *)
   let (z, c) = fresh_class c in
   feat_i x f z c
-
-let fen_i x fs c =
-  assert false
-
-let nfen_i x fs c =
-  assert false
-
-let sim_i x fs y c =
-  assert false
-
-let nsim_i x fs y c =
-  (* C-NSim-Refl *)
-  if Vpuf.eq_cls c.infos x y then
-    raise Unsat;
-  assert false
 
 (* External atoms. These are just wrappers around internal atoms and
    [class_from_variable]. *)
@@ -286,26 +359,35 @@ let nsim x fs y c =
 
 (* Higher-level endpoints. *)
 
-let atom a c =
+let atom (a : Atom.t) (c : t) : disj =
   let open Atom in
   match a with
   | Eq (x, y) -> eq x y c
-  | Feat (x, f, y) -> [feat x f y c]
-  | Abs (x, f) -> [abs x f c]
+  | Feat (x, f, y) -> feat x f y c
+  | Abs (x, f) -> abs x f c
   | Fen (x, fs) -> fen x fs c
   | Sim (x, fs, y) -> sim x fs y c
 
-let natom a c =
+let natom (a : Atom.t) (c : t) : disj =
   let open Atom in
   match a with
-  | Eq (x, y) -> [neq x y c]
+  | Eq (x, y) -> neq x y c
   | Feat (x, f, y) -> nfeat x f y c
-  | Abs (x, f) -> [nabs x f c]
+  | Abs (x, f) -> nabs x f c
   | Fen (x, fs) -> nfen x fs c
   | Sim (x, fs, y) -> nsim x fs y c
 
-let literal l c =
+let literal (l : Literal.t) (c : t) : disj =
   let open Literal in
   match l with
   | Pos a -> atom a c
   | Neg a -> natom a c
+
+let atom_d a d =
+  on_disj_l (atom a) d
+
+let natom_d a d =
+  on_disj_l (natom a) d
+
+let literal_d l d =
+  on_disj_l (literal l) d
