@@ -172,26 +172,49 @@ let exists_comp vs c =
 let exists_comp_d vs d =
   on_disj (exists_comp vs) d
 
+(* Internal atoms, no propagation. They work on classes of variables. *)
+
+let feat_i_np (x:cls) f (y:cls) (c:t) : t =
+  let info_x = Vpuf.get c.infos x in
+  let info_x = { info_x with feats = Feature.Map.add f (Some y) info_x.feats } in
+  { c with infos = Vpuf.set c.infos x info_x }
+
+let abs_i_np (x:cls) f (c:t) : t =
+  let info_x = Vpuf.get c.infos x in
+  let info_x = { info_x with feats = Feature.Map.add f None info_x.feats } in
+  { c with infos = Vpuf.set c.infos x info_x }
+
 (* Internal atoms. These work on classes of variables. *)
 
 let rec eq_i (x:cls) (y:cls) (c:t) : disj =
+  (* We first declare the union to the [Vpuf]. This will return a new
+     set of infos where we kept the informations of one of the classes
+     and lost the other informations. These other informations are
+     also returned, and this is up to us to decide what we will do
+     with them. *)
   let (infos, info_y) = Vpuf.union c.infos x y in
   let c = { c with infos } in
   let d = [c] in
+  (* And what we do is that we take all the lost infos and put them in
+     the structure again. Since we use the _i functions, the
+     disjunction is in normal form at every stage. We start with
+     features and absences. *)
   let d =
     Feature.Map.fold
       (fun f z d ->
         match z with
-        | None -> d
+        | None -> on_disj_l (abs_i x f) d
         | Some z -> on_disj_l (feat_i x f z) d)
       info_y.feats
       d
   in
+  (* Now the (possibly not there) positive fence. *)
   let d =
     match info_y.fen with
     | None -> d
     | Some fs -> on_disj_l (fen_i x fs) d
   in
+  (* The negative fences. *)
   let d =
     List.fold_left
       (fun d fs ->
@@ -199,6 +222,7 @@ let rec eq_i (x:cls) (y:cls) (c:t) : disj =
       d
       info_y.nfens
   in
+  (* The positive similarities. *)
   let d =
     List.fold_left
       (fun d (fs, z) ->
@@ -206,6 +230,7 @@ let rec eq_i (x:cls) (y:cls) (c:t) : disj =
       d
       info_y.sims
   in
+  (* The negative similarities. *)
   let d =
     List.fold_left
       (fun d (fsl, z) ->
@@ -215,46 +240,86 @@ let rec eq_i (x:cls) (y:cls) (c:t) : disj =
       d
       info_y.nsims
   in
+  (* And we return. All these steps may have triggered a lot of
+     rules. *)
   d
 
 and feat_i (x:cls) f (y:cls) (c:t) : disj =
   let info_x = Vpuf.get c.infos x in
   match Feature.Map.find f info_x.feats with
-  | None -> (* absence: x[f]^; C-Feat-Abs *)
+  | None ->
+     (* There is already an absence x[f]^. This triggers the clash
+        C-Feat-Abs. *)
      bottom
-  | Some z -> (* feature x[f]z *)
+  | Some z ->
+     (* There is already a feature x[f]z. This triggers the rule
+        S-Feats. *)
      eq_i y z c
-  | exception Not_found -> (* nothing *)
-     (* check for clashes *)
+  | exception Not_found ->
+     (* There is nothing at the feature [f]. We just need to add the
+        feature and propagate it. We still have to be careful and
+        check that it does not clash with a fence or that it does not
+        create a cycle. *)
      (
        match info_x.fen with
        | Some fs when not (Feature.Set.mem f fs) ->
           bottom
        | _ ->
-          (* add and propagate *)
-          let info_x = { info_x with feats = Feature.Map.add f (Some y) info_x.feats } in
-          let c = { c with infos = Vpuf.set c.infos x info_x } in
+          (* Add and propagate. We know that [x]'s brothers do not
+             have the feature [f], nor an absence, nor a fence that
+             prevents it, because we are in normal form, and such a
+             case would have triggered a clash check on our side. *)
+          let c = feat_i_np x f y c in
           let c =
             List.fold_left
               (fun c (fs, z) ->
-                let info_z = Vpuf.get c.infos z in
-                let info_z = { info_z with feats = Feature.Map.add f (Some y) info_z.feats } in
-                { c with infos = Vpuf.set c.infos z info_z })
+                if Feature.Set.mem f fs
+                then c
+                else feat_i_np z f y c)
               c
               info_x.sims
           in
-          (* check for cycles *)
+          (* Check for cycles and return. We only need to check them
+             from [x] and [x]'s brothers because this is where we
+             added the only features. *)
           try
             check_cycles_from c x;
             List.iter
               (fun (_, z) ->
                 check_cycles_from c z)
               info_x.sims;
-            (* return *)
             [c]
           with
             Cycle -> bottom
      )
+
+and abs_i (x:cls) f (c:t) : disj =
+  let info_x = Vpuf.get c.infos x in
+  match Feature.Map.find f info_x.feats with
+  | None ->
+     (* There is already an absence x[f]^. Then we added no
+        information, we can just return directly. *)
+     [c]
+  | Some z ->
+     (* There is already a feature x[f]z. This triggers the clash
+        C-Feat-Abs. *)
+     bottom
+  | exception Not_found ->
+     (* There is nothing at the feature f. We just need to add the
+        absence and propagate it. We know that [x]'s brothers do not
+        have the feature f because we are in normal form and such a
+        case would have triggered a clash check on our side. *)
+     let c = abs_i_np x f c in
+     let c =
+       List.fold_left
+         (fun c (fs, z) ->
+           if Feature.Set.mem f fs
+           then c
+           else abs_i_np z f c)
+         c
+         info_x.sims
+     in
+     [c]
 
 and fen_i (x:cls) fs (c:t) : disj =
   assert false
@@ -280,28 +345,6 @@ let neq_i (x:cls) (y:cls) (c:t) : disj =
 
 let nfeat_i (x:cls) f (y:cls) (c:t) : disj =
   assert false
-
-let abs_i (x:cls) f (c:t) : disj =
-  let info_x = Vpuf.get c.infos x in
-  match Feature.Map.find f info_x.feats with
-  | None -> (* absence: x[f]^ *)
-     [c]
-  | Some z -> (* feature: x[f]z; C-Feat-Abs *)
-     bottom
-  | exception Not_found -> (* nothing *)
-     (* add and propagate *)
-     let info_x = { info_x with feats = Feature.Map.add f None info_x.feats } in
-     let c = { c with infos = Vpuf.set c.infos x info_x } in
-     let c =
-       List.fold_left
-         (fun c (fs, z) ->
-           let info_z = Vpuf.get c.infos z in
-           let info_z = { info_z with feats = Feature.Map.add f None info_z.feats } in
-           { c with infos = Vpuf.set c.infos z info_z })
-         c
-         info_x.sims
-     in
-     [c]
 
 let nabs_i (x:cls) f (c:t) : disj =
   (* R-NAbs *)
