@@ -184,6 +184,16 @@ let abs_i_np (x:cls) f (c:t) : t =
   let info_x = { info_x with feats = Feature.Map.add f None info_x.feats } in
   { c with infos = Vpuf.set c.infos x info_x }
 
+let fen_i_np (x:cls) fs (c:t) : t =
+  let info_x = Vpuf.get c.infos x in
+  let gs =
+    match info_x.fen with
+    | None -> fs
+    | Some gs -> Feature.Set.inter fs gs
+  in
+  let info_x = { info_x with fen = Some gs } in
+  {c with infos = Vpuf.set c.infos x info_x }
+
 (* Internal atoms. These work on classes of variables. *)
 
 let rec eq_i (x:cls) (y:cls) (c:t) : disj =
@@ -322,7 +332,29 @@ and abs_i (x:cls) f (c:t) : disj =
      [c]
 
 and fen_i (x:cls) fs (c:t) : disj =
-  assert false
+  let info_x = Vpuf.get c.infos x in
+  match info_x.fen with
+  | Some gs when Feature.Set.subset fs gs ->
+     [c]
+  | _ ->
+     if Feature.Map.exists
+          (fun f z -> z <> None && not (Feature.Set.mem f fs))
+          info_x.feats
+     then
+       bottom
+     else
+       (
+         let c = fen_i_np x fs c in
+         let c =
+           List.fold_left
+             (fun c (hs, z) ->
+               fen_i_np z (Feature.Set.union fs hs) c)
+             c
+             info_x.sims
+         in
+         (* FIXME: extend nfences *)
+         [c]
+       )
 
 and nfen_i (x:cls) fs (c:t) : disj =
   assert false
