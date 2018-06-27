@@ -172,6 +172,7 @@ let exists_comp vs c =
 let exists_comp_d vs d =
   on_disj (exists_comp vs) d
 
+(* ************************************************************************** *)
 (* Internal atoms, no propagation. They work on classes of variables. *)
 
 let feat_i_np (x:cls) f (y:cls) (c:t) : t =
@@ -186,14 +187,16 @@ let abs_i_np (x:cls) f (c:t) : t =
 
 let fen_i_np (x:cls) fs (c:t) : t =
   let info_x = Vpuf.get c.infos x in
-  let gs =
-    match info_x.fen with
-    | None -> fs
-    | Some gs -> Feature.Set.inter fs gs
+  let info_x =
+    { info_x with
+      fen =
+        match info_x.fen with
+        | None -> Some fs
+        | Some gs -> Some (Feature.Set.inter fs gs) }
   in
-  let info_x = { info_x with fen = Some gs } in
-  {c with infos = Vpuf.set c.infos x info_x }
+  { c with infos = Vpuf.set c.infos x info_x }
 
+(* ************************************************************************** *)
 (* Internal atoms. These work on classes of variables. *)
 
 let rec eq_i (x:cls) (y:cls) (c:t) : disj =
@@ -333,35 +336,66 @@ and abs_i (x:cls) f (c:t) : disj =
 
 and fen_i (x:cls) fs (c:t) : disj =
   let info_x = Vpuf.get c.infos x in
-  match info_x.fen with
-  | Some gs when Feature.Set.subset fs gs ->
-     [c]
-  | _ ->
-     if Feature.Map.exists
-          (fun f z -> z <> None && not (Feature.Set.mem f fs))
-          info_x.feats
-     then
-       bottom
-     else
-       (
-         let c = fen_i_np x fs c in
-         let c =
-           List.fold_left
-             (fun c (hs, z) ->
-               fen_i_np z (Feature.Set.union fs hs) c)
-             c
-             info_x.sims
-         in
-         (* FIXME: extend nfences *)
-         [c]
-       )
+  if Feature.Map.for_all
+       (fun f -> function
+         | None -> true
+         | Some _ -> Feature.Set.mem f fs)
+       info_x.feats
+  then
+    (
+      (* We add our fence. And then we propagate it. FIXME: it will get
+     much more complicated afterwards, when  *)
+      let c = fen_i_np x fs c in
+      let c =
+        List.fold_left
+          (fun c (hs, z) ->
+            fen_i_np z (Feature.Set.union fs hs) c)
+          c
+          info_x.sims
+      in
+      [c]
+    )
+  else
+    bottom
 
 and nfen_i (x:cls) fs (c:t) : disj =
   assert false
 
 and sim_i (x:cls) fs (y:cls) (c:t) : disj =
+  let info_x = Vpuf.get c.infos x in
+  let info_y = Vpuf.get c.infos y in
+  let d =
+    [c]
+    (* Add all x's features and absences to y *)
+    |> Feature.Map.fold
+         (fun f z d ->
+           match z with
+           | None -> on_disj_l (abs_i y f) d
+           | Some z -> on_disj_l (feat_i y f z) d)
+         info_x.feats
+    (* Return the favour *)
+    |> Feature.Map.fold
+         (fun f z d ->
+           match z with
+           | None -> on_disj_l (abs_i x f) d
+           | Some z -> on_disj_l (feat_i x f z) d)
+         info_y.feats
+  in
+  let d =
+    (* Add x's fence to y *)  
+    (match info_x.fen with
+     | None -> d
+     | Some gs -> on_disj_l (fen_i y (Feature.Set.union fs gs)) d)
+  in
+  let _d =
+    (* Add y's fence to x *)
+    (match info_y.fen with
+     | None -> d
+     | Some gs -> on_disj_l (fen_i x (Feature.Set.union fs gs)) d)
+  in
+  (* Add all the similarities without propagation *)
   assert false
-
+  
 and nsim_i (x:cls) fs (y:cls) (c:t) : disj =
   (* C-NSim-Refl *)
   if Vpuf.eq_cls c.infos x y then
@@ -373,16 +407,22 @@ let neq_i (x:cls) (y:cls) (c:t) : disj =
   if Vpuf.eq_cls c.infos x y then
     bottom
   else
-    assert false
+    nsim_i x Feature.Set.empty y c
 
 let nfeat_i (x:cls) f (y:cls) (c:t) : disj =
-  assert false
+  (* R-NFeat *)
+  (* Two possibilities: either x does not have the f. *)
+  (abs_i x f c)
+  (* Or x has the f, but it does not go to y. *)
+  @ (let (z, c) = fresh_class c in
+     c |> feat_i x f z |> on_disj_l (neq_i y z))
 
 let nabs_i (x:cls) f (c:t) : disj =
   (* R-NAbs *)
   let (z, c) = fresh_class c in
   feat_i x f z c
 
+(* ************************************************************************** *)
 (* External atoms. These are just wrappers around internal atoms and
    [class_from_variable]. *)
 
@@ -432,6 +472,7 @@ let nsim x fs y c =
   let (y, c) = class_from_variable c y in
   nsim_i x fs y c
 
+(* ************************************************************************** *)
 (* Higher-level endpoints. *)
 
 let atom (a : Atom.t) (c : t) : disj =
