@@ -3,6 +3,9 @@
 /_build
 /*.install
 *.merlin
+/bin
+/lib
+/doc
 
 ## Emacs
 *~

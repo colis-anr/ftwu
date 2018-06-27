@@ -1,8 +1,13 @@
+.PHONY: build doc install uninstall test clean
+
 build:
 	jbuilder build @install
+	ln -s _build/install/default/bin bin
+	ln -s _build/install/default/lib lib
 
 doc:
 	jbuilder build @doc
+	ln -s _build/default/_doc/_html doc
 
 install:
 	jbuilder install
@@ -15,5 +20,4 @@ test:
 
 clean:
 	jbuilder clean
-
-.PHONY: build doc install uninstall test clean
+	rm -f bin lib doc
