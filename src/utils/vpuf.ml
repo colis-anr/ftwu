@@ -26,10 +26,6 @@ let make size v =
   { puf = Puf.create size ;
     vals = Parray.make size v }
 
-let init size f =
-  { puf = Puf.create size ;
-    vals = Parray.init size f }
-
 let get heap x =
   let a = Puf.find heap.puf x in
   Parray.get heap.vals a
@@ -39,10 +35,8 @@ let set heap x v =
   { heap with
     vals = Parray.set heap.vals a v }
 
-exception Unsat
-
 let union heap x y =
-  let (puf, x, y) = Puf.union_verbose heap.puf x y in
+  let (puf, _x, y) = Puf.union_verbose heap.puf x y in
   (* [x] is the winner, the new representant for both classes. [y] is
      the looser. *)
 

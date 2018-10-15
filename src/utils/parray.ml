@@ -33,7 +33,7 @@ let rec rerootk t k =
 let reroot t =
   rerootk t (fun () -> ())
 
-let rec get t i =
+let get t i =
   match !t with
   | Array a ->
      a.(i)
@@ -73,7 +73,7 @@ let unsafe_from_array a =
 
 let from_array a =
   unsafe_from_array (Array.copy a)
-            
+
 let length t = reroot_and_apply Array.length t
 
 let append t1 t2 =

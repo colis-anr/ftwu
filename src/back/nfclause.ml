@@ -144,19 +144,19 @@ let check_cycles_from c x =
       raise Cycle
     else
       Feature.Map.iter
-        (fun f -> function
+        (fun _f -> function
           | None -> ()
           | Some y -> visit (x :: trace) y)
         (Vpuf.get c.infos x).feats
   in
   visit [] x
 
-let has_cycles_from c x =
-  try
-    check_cycles_from c x;
-    false
-  with
-    Cycle -> true
+(* let has_cycles_from c x =
+ *   try
+ *     check_cycles_from c x;
+ *     false
+ *   with
+ *     Cycle -> true *)
 
 let exists vs c =
   { c with
@@ -313,7 +313,7 @@ and abs_i (x:cls) f (c:t) : disj =
      (* There is already an absence x[f]^. Then we added no
         information, we can just return directly. *)
      [c]
-  | Some z ->
+  | Some _z ->
      (* There is already a feature x[f]z. This triggers the clash
         C-Feat-Abs. *)
      bottom
@@ -358,7 +358,7 @@ and fen_i (x:cls) fs (c:t) : disj =
   else
     bottom
 
-and nfen_i (x:cls) fs (c:t) : disj =
+and nfen_i (_x:cls) _fs (_c:t) : disj =
   assert false
 
 and sim_i (x:cls) fs (y:cls) (c:t) : disj =
@@ -382,7 +382,7 @@ and sim_i (x:cls) fs (y:cls) (c:t) : disj =
          info_y.feats
   in
   let d =
-    (* Add x's fence to y *)  
+    (* Add x's fence to y *)
     (match info_x.fen with
      | None -> d
      | Some gs -> on_disj_l (fen_i y (Feature.Set.union fs gs)) d)
@@ -395,8 +395,8 @@ and sim_i (x:cls) fs (y:cls) (c:t) : disj =
   in
   (* Add all the similarities without propagation *)
   assert false
-  
-and nsim_i (x:cls) fs (y:cls) (c:t) : disj =
+
+and nsim_i (x:cls) _fs (y:cls) (c:t) : disj =
   (* C-NSim-Refl *)
   if Vpuf.eq_cls c.infos x y then
     bottom
