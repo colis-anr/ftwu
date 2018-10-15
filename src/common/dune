@@ -1,0 +1,3 @@
+(library
+ (name ftwu_common)
+ (public_name ftwu.common))
